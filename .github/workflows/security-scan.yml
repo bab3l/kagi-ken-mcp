@@ -22,12 +22,13 @@ jobs:
       - name: Build image
         run: docker build -t kagi-ken-mcp:scan .
 
-      - name: Setup Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
-
       - name: Trivy filesystem scan
         run: |
-          trivy fs . \
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            aquasec/trivy:0.56.1 \
+            fs . \
             --format sarif \
             --output trivy-fs.sarif \
             --severity CRITICAL,HIGH \
@@ -35,7 +36,12 @@ jobs:
 
       - name: Trivy image scan
         run: |
-          trivy image kagi-ken-mcp:scan \
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            aquasec/trivy:0.56.1 \
+            image kagi-ken-mcp:scan \
             --format sarif \
             --output trivy-image.sarif \
             --severity CRITICAL,HIGH \
