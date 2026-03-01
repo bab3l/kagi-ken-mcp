@@ -22,7 +22,9 @@ RUN git config --global url."https://github.com/".insteadOf "ssh://git@github.co
 
 RUN npm install -g \
   supergateway \
-  https://github.com/czottmann/kagi-ken-mcp/archive/refs/tags/${KAGI_KEN_MCP_REF}.tar.gz
+  https://github.com/czottmann/kagi-ken-mcp/archive/refs/tags/${KAGI_KEN_MCP_REF}.tar.gz \
+  && rm -rf /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 COPY docker/run_gateway.sh /app/run_gateway.sh
 COPY docker/healthcheck.mjs /app/healthcheck.mjs
