@@ -35,9 +35,13 @@ const server = http.createServer(async (req, res) => {
     delete headers.host;
     delete headers["content-length"];
 
-    const bodyBuffer = await readRequestBody(req);
+    let bodyBuffer = await readRequestBody(req);
     const method = req.method || "GET";
     const shouldSendBody = method !== "GET" && method !== "HEAD";
+
+    if (shouldSendBody && bodyBuffer.length > 0) {
+      bodyBuffer = normalizeToolCallRequestBody(bodyBuffer, req.headers["content-type"]);
+    }
 
     const upstreamResponse = await fetch(upstreamUrl, {
       method,
@@ -157,6 +161,62 @@ function readRequestBody(req) {
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
+}
+
+function normalizeToolCallRequestBody(bodyBuffer, contentTypeHeader) {
+  const contentType = String(contentTypeHeader || "").toLowerCase();
+  if (!contentType.includes("application/json")) {
+    return bodyBuffer;
+  }
+
+  const text = bodyBuffer.toString("utf8");
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    return bodyBuffer;
+  }
+
+  const entries = Array.isArray(payload) ? payload : [payload];
+  let changed = false;
+
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    if (entry.method !== "tools/call") {
+      continue;
+    }
+
+    const params = entry.params;
+    if (!params || typeof params !== "object") {
+      continue;
+    }
+
+    if (params.name !== "kagi_search_fetch") {
+      continue;
+    }
+
+    const args = params.arguments;
+    if (!args || typeof args !== "object") {
+      continue;
+    }
+
+    const rawLimit = args.limit;
+    if (typeof rawLimit !== "string") {
+      continue;
+    }
+
+    if (!/^\d+$/.test(rawLimit.trim())) {
+      continue;
+    }
+
+    args.limit = Number(rawLimit);
+    changed = true;
+  }
+
+  return changed ? Buffer.from(JSON.stringify(payload)) : bodyBuffer;
 }
 
 function httpReadableFromWeb(webStream) {
