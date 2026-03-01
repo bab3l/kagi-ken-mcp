@@ -21,18 +21,20 @@ docker run --rm -it \
 
 MCP endpoint (streamable HTTP): `http://localhost:8000/mcp`
 
-## Quickstart for Home Assistant (SSE)
+## Quickstart for Home Assistant (Streamable HTTP + HA compat)
 
-Use SSE transport when configuring Home Assistant MCP.
+Use streamable HTTP with HA compatibility mode enabled.
+Home Assistant MCP currently rejects some tool-schema keywords (for example `minItems`), so compatibility mode strips them from MCP responses.
 
 ```bash
 docker run -d \
   --name kagi-mcp-bridge \
   -e KAGI_SESSION_TOKEN="YOUR_SESSION_TOKEN_HERE" \
-  -e MCP_TRANSPORT=sse \
+  -e MCP_TRANSPORT=streamableHttp \
   -e MCP_PORT=8000 \
-  -e MCP_SSE_PATH=/sse \
-  -e MCP_MESSAGE_PATH=/message \
+  -e MCP_STREAMABLE_HTTP_PATH=/mcp \
+  -e MCP_HA_COMPAT=true \
+  -e MCP_HA_STRIP_SCHEMA_KEYWORDS=minItems \
   -p 3002:8000 \
   --restart unless-stopped \
   ghcr.io/bab3l/kagi-ken-mcp:latest
@@ -40,9 +42,7 @@ docker run -d \
 
 Home Assistant MCP settings:
 
-- Transport: `SSE`
-- SSE URL: `http://<docker-host>:3002/sse`
-- Message URL: `http://<docker-host>:3002/message`
+- URL: `http://<docker-host>:3002/mcp`
 - Authentication: none (unless you add your own reverse-proxy auth)
 
 If Home Assistant is running in Docker on the same machine, use the Docker host address reachable from the Home Assistant container (for example `host.docker.internal` where supported).
@@ -71,6 +71,8 @@ docker compose ps
 - `MCP_STREAMABLE_HTTP_PATH`: streamable HTTP path (default `/mcp`).
 - `MCP_SSE_PATH`: SSE path when using SSE transport (default `/sse`).
 - `MCP_MESSAGE_PATH`: message POST path for SSE transport (default `/message`).
+- `MCP_HA_COMPAT`: enables Home Assistant compatibility schema sanitization for streamable HTTP (default `false`).
+- `MCP_HA_STRIP_SCHEMA_KEYWORDS`: comma-separated JSON Schema keywords to remove from tool input schemas in HA compat mode (default `minItems`).
 
 ## CI/CD and automation
 
