@@ -22,7 +22,33 @@ jobs:
       - name: Build image
         run: docker build -t kagi-ken-mcp:scan .
 
+      - name: Trivy filesystem scan (gating)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            aquasec/trivy:0.56.1 \
+            fs . \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress
+
+      - name: Trivy image scan (gating)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            aquasec/trivy:0.56.1 \
+            image kagi-ken-mcp:scan \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress
+
       - name: Trivy filesystem scan
+        if: github.event_name != 'pull_request'
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
@@ -35,6 +61,7 @@ jobs:
             --ignore-unfixed
 
       - name: Trivy image scan
+        if: github.event_name != 'pull_request'
         run: |
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
@@ -48,12 +75,14 @@ jobs:
             --ignore-unfixed
 
       - name: Upload filesystem SARIF
+        if: github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
 
       - name: Upload image SARIF
+        if: github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-image.sarif

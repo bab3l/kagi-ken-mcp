@@ -16,10 +16,36 @@ docker run --rm -it \
   -e MCP_TRANSPORT=streamableHttp \
   -e MCP_PORT=8000 \
   -p 8000:8000 \
-  ghcr.io/<your-gh-user>/kagi-ken-mcp:latest
+  ghcr.io/bab3l/kagi-ken-mcp:latest
 ```
 
 MCP endpoint (streamable HTTP): `http://localhost:8000/mcp`
+
+## Quickstart for Home Assistant (SSE)
+
+Use SSE transport when configuring Home Assistant MCP.
+
+```bash
+docker run -d \
+  --name kagi-mcp-bridge \
+  -e KAGI_SESSION_TOKEN="YOUR_SESSION_TOKEN_HERE" \
+  -e MCP_TRANSPORT=sse \
+  -e MCP_PORT=8000 \
+  -e MCP_SSE_PATH=/sse \
+  -e MCP_MESSAGE_PATH=/message \
+  -p 3002:8000 \
+  --restart unless-stopped \
+  ghcr.io/bab3l/kagi-ken-mcp:latest
+```
+
+Home Assistant MCP settings:
+
+- Transport: `SSE`
+- SSE URL: `http://<docker-host>:3002/sse`
+- Message URL: `http://<docker-host>:3002/message`
+- Authentication: none (unless you add your own reverse-proxy auth)
+
+If Home Assistant is running in Docker on the same machine, use the Docker host address reachable from the Home Assistant container (for example `host.docker.internal` where supported).
 
 ## Local development
 
