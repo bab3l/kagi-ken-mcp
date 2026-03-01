@@ -10,8 +10,8 @@
  * - Home Assistant Core 2026.2.3 (HA OS 17.1 / Supervisor 2026.02.3)
  * - MCP protocol responses negotiated as 2025-11-25 via streamable HTTP
  *
- * This proxy is opt-in (MCP_HA_COMPAT=true) and strips configured schema keywords from
- * JSON/JSON-like MCP responses before forwarding them to Home Assistant.
+ * This proxy is opt-in (MCP_HA_COMPAT=true) and strips known incompatible schema
+ * keywords from JSON/JSON-like MCP responses before forwarding them to Home Assistant.
  */
 import http from "node:http";
 import { Readable } from "node:stream";
@@ -19,12 +19,7 @@ import { Readable } from "node:stream";
 const listenPort = Number(process.env.MCP_PORT || "8000");
 const upstreamPort = Number(process.env.MCP_HA_INTERNAL_PORT || String(listenPort + 1));
 const upstreamBaseUrl = process.env.MCP_HA_UPSTREAM_BASE_URL || `http://127.0.0.1:${upstreamPort}`;
-const stripKeywords = new Set(
-  (process.env.MCP_HA_STRIP_SCHEMA_KEYWORDS || "minItems")
-    .split(",")
-    .map((keyword) => keyword.trim())
-    .filter(Boolean),
-);
+const stripKeywords = new Set(["minItems"]);
 
 const server = http.createServer(async (req, res) => {
   try {
