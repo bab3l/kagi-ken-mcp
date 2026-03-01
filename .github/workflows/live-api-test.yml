@@ -1,0 +1,71 @@
+name: Live API Test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "35 6 * * *"
+
+jobs:
+  live-tool-call:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t kagi-ken-mcp:live .
+
+      - name: Start container
+        env:
+          KAGI_SESSION_TOKEN: ${{ secrets.KAGI_SESSION_TOKEN }}
+          LIVE_TEST_MODE: ${{ vars.LIVE_TEST_MODE || 'summarizer' }}
+        run: |
+          if [ -z "$KAGI_SESSION_TOKEN" ]; then
+            echo "KAGI_SESSION_TOKEN secret is missing"
+            exit 1
+          fi
+
+          docker run -d --name kagi-ken-mcp-live \
+            -e KAGI_SESSION_TOKEN \
+            -e MCP_TRANSPORT=streamableHttp \
+            -e MCP_PORT=8000 \
+            -p 8000:8000 \
+            kagi-ken-mcp:live
+
+      - name: Wait for health
+        run: |
+          for i in {1..30}; do
+            status=$(docker inspect --format='{{.State.Health.Status}}' kagi-ken-mcp-live || true)
+            if [ "$status" = "healthy" ]; then
+              echo "Container healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs kagi-ken-mcp-live
+          exit 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run live MCP tool test
+        env:
+          SERVER_URL: http://127.0.0.1:8000/mcp
+          MCP_REQUEST_TIMEOUT_MS: 180000
+          LIVE_TEST_MODE: ${{ vars.LIVE_TEST_MODE || 'summarizer' }}
+          LIVE_TEST_QUERY: ${{ vars.LIVE_TEST_QUERY || 'Kagi AI search' }}
+          LIVE_TEST_SUMMARY_URL: ${{ vars.LIVE_TEST_SUMMARY_URL || 'https://www.kagi.com' }}
+        run: npm run live-test
+
+      - name: Logs on failure
+        if: failure()
+        run: docker logs kagi-ken-mcp-live
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f kagi-ken-mcp-live || true

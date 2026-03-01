@@ -1,0 +1,108 @@
+name: Docker Publish
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: "Build and publish even if upstream did not change"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  detect-upstream:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.detect.outputs.should_build }}
+      upstream_ref: ${{ steps.detect.outputs.upstream_ref }}
+      previous_ref: ${{ steps.detect.outputs.previous_ref }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect latest upstream tag
+        id: detect
+        shell: bash
+        run: |
+          latest=$(curl -fsSL https://api.github.com/repos/czottmann/kagi-ken-mcp/tags | jq -r '.[0].name')
+          previous=$(tr -d '[:space:]' < .upstream-version)
+
+          if [ -z "$latest" ] || [ "$latest" = "null" ]; then
+            echo "Failed to detect upstream tag"
+            exit 1
+          fi
+
+          should_build=false
+          if [ "$latest" != "$previous" ]; then
+            should_build=true
+          fi
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            should_build=true
+          fi
+
+          if [ "${{ github.event.inputs.force_build || 'false' }}" = "true" ]; then
+            should_build=true
+          fi
+
+          echo "upstream_ref=$latest" >> "$GITHUB_OUTPUT"
+          echo "previous_ref=$previous" >> "$GITHUB_OUTPUT"
+          echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
+
+  build-and-publish:
+    runs-on: ubuntu-latest
+    needs: detect-upstream
+    if: needs.detect-upstream.outputs.should_build == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract lowercase owner
+        id: owner
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        env:
+          IMAGE: ghcr.io/${{ steps.owner.outputs.value }}/kagi-ken-mcp
+          UPSTREAM_REF: ${{ needs.detect-upstream.outputs.upstream_ref }}
+        run: |
+          docker build \
+            --build-arg KAGI_KEN_MCP_REF="$UPSTREAM_REF" \
+            -t "$IMAGE:latest" \
+            -t "$IMAGE:$UPSTREAM_REF" \
+            .
+
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:$UPSTREAM_REF"
+
+      - name: Update .upstream-version
+        env:
+          UPSTREAM_REF: ${{ needs.detect-upstream.outputs.upstream_ref }}
+        run: echo "$UPSTREAM_REF" > .upstream-version
+
+      - name: Commit version update
+        run: |
+          if git diff --quiet .upstream-version; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .upstream-version
+          git commit -m "chore: bump upstream to ${{ needs.detect-upstream.outputs.upstream_ref }}"
+          git push

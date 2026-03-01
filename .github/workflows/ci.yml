@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t kagi-ken-mcp:test .
+
+      - name: Start container
+        env:
+          KAGI_SESSION_TOKEN: dummy
+        run: |
+          docker run -d --name kagi-ken-mcp-test \
+            -e KAGI_SESSION_TOKEN \
+            -e MCP_TRANSPORT=streamableHttp \
+            -e MCP_PORT=8000 \
+            -p 8000:8000 \
+            kagi-ken-mcp:test
+
+      - name: Wait for health
+        run: |
+          for i in {1..30}; do
+            status=$(docker inspect --format='{{.State.Health.Status}}' kagi-ken-mcp-test || true)
+            if [ "$status" = "healthy" ]; then
+              echo "Container healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs kagi-ken-mcp-test
+          exit 1
+
+      - name: Assert fast-start stdio path
+        run: |
+          logs=$(docker logs kagi-ken-mcp-test 2>&1 || true)
+
+          if echo "$logs" | grep -q "stdio: npx"; then
+            echo "::error::Detected runtime npx stdio fallback; expected preinstalled binary for fast startup"
+            echo "$logs"
+            exit 1
+          fi
+
+          if ! echo "$logs" | grep -q "stdio: kagi-ken-mcp"; then
+            echo "::error::Did not detect expected stdio binary startup log"
+            echo "$logs"
+            exit 1
+          fi
+
+          echo "Fast-start assertion passed"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: MCP streamable-http smoke test
+        env:
+          SERVER_URL: http://127.0.0.1:8000/mcp
+          MCP_REQUEST_TIMEOUT_MS: 180000
+        run: npm run smoke
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs kagi-ken-mcp-test
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f kagi-ken-mcp-test || true

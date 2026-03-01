@@ -1,0 +1,17 @@
+{
+  "name": "kagi-ken-mcp-network",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "smoke": "node scripts/mcp_streamable_smoke.mjs",
+    "live-test": "node scripts/mcp_live_tool_test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.1",
+    "zod": "^4.1.5"
+  }
+}
