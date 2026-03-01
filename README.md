@@ -34,7 +34,6 @@ docker run -d \
   -e MCP_PORT=8000 \
   -e MCP_STREAMABLE_HTTP_PATH=/mcp \
   -e MCP_HA_COMPAT=true \
-  -e MCP_HA_STRIP_SCHEMA_KEYWORDS=minItems \
   -p 3002:8000 \
   --restart unless-stopped \
   ghcr.io/bab3l/kagi-ken-mcp:latest
@@ -72,7 +71,6 @@ docker compose ps
 - `MCP_SSE_PATH`: SSE path when using SSE transport (default `/sse`).
 - `MCP_MESSAGE_PATH`: message POST path for SSE transport (default `/message`).
 - `MCP_HA_COMPAT`: enables Home Assistant compatibility schema sanitization for streamable HTTP (default `false`).
-- `MCP_HA_STRIP_SCHEMA_KEYWORDS`: comma-separated JSON Schema keywords to remove from tool input schemas in HA compat mode (default `minItems`).
 
 ## CI/CD and automation
 
