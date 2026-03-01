@@ -22,25 +22,24 @@ jobs:
       - name: Build image
         run: docker build -t kagi-ken-mcp:scan .
 
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-fs.sarif
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
+        run: |
+          trivy fs . \
+            --format sarif \
+            --output trivy-fs.sarif \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed
 
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: image
-          image-ref: kagi-ken-mcp:scan
-          format: sarif
-          output: trivy-image.sarif
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
+        run: |
+          trivy image kagi-ken-mcp:scan \
+            --format sarif \
+            --output trivy-image.sarif \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed
 
       - name: Upload filesystem SARIF
         uses: github/codeql-action/upload-sarif@v3
