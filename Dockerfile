@@ -28,6 +28,7 @@ RUN npm install -g \
 
 COPY docker/run_gateway.sh /app/run_gateway.sh
 COPY docker/healthcheck.mjs /app/healthcheck.mjs
+COPY docker/ha_compat_proxy.mjs /app/ha_compat_proxy.mjs
 RUN chmod +x /app/run_gateway.sh
 
 EXPOSE 8000
